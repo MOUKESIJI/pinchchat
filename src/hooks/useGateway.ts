@@ -215,6 +215,27 @@ export function useGateway() {
       console.warn('[PinchChat] Failed to load device identity, connecting without it:', err);
     }
 
+    client.onConnectError((gatewayMsg) => {
+      let userFacingError: string;
+      if (gatewayMsg.includes('missing scope')) {
+        // Extract the missing scope name if present, e.g. "missing scope: operator.read"
+        const scopeMatch = gatewayMsg.match(/missing scope:\s*(\S+)/);
+        const scopeName = scopeMatch ? scopeMatch[1] : 'operator.*';
+        userFacingError =
+          `Token is missing the required scope: ${scopeName}. ` +
+          'Please make sure your OpenClaw token has operator-level permissions. ' +
+          'Check the scopes assigned to this token in your OpenClaw configuration.';
+      } else if (gatewayMsg.includes('UNAUTHORIZED') || gatewayMsg.includes('invalid token') || gatewayMsg.includes('Unauthorized')) {
+        userFacingError = 'Invalid token — please check your credentials.';
+      } else {
+        userFacingError = `Connection rejected: ${gatewayMsg}`;
+      }
+      setConnectError(userFacingError);
+      setIsConnecting(false);
+      isConnectingRef.current = false;
+      setAuthenticated(false);
+    });
+
     client.onStatus((s) => {
       setStatus(s);
       if (s === 'connected') {
@@ -234,7 +255,7 @@ export function useGateway() {
         setIsConnecting(false);
         isConnectingRef.current = false;
       } else if (s === 'disconnected' && !client.isConnected) {
-        // If we never connected successfully, this is an auth/connection error
+        // If we never connected successfully and no specific error was set, show a generic message
         if (isConnectingRef.current) {
           setConnectError('Connection failed — check URL and token');
           setIsConnecting(false);

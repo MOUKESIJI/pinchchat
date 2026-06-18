@@ -34,6 +34,7 @@ export class GatewayClient {
   private pendingRequests = new Map<string, { resolve: (v: JsonPayload) => void; reject: (e: unknown) => void }>();
   private eventHandlers: GatewayEventHandler[] = [];
   private _onStatus: (s: GatewayStatus) => void = () => {};
+  private _onConnectError: (err: string) => void = () => {};
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private reconnectAttempts = 0;
   private connected = false;
@@ -67,6 +68,11 @@ export class GatewayClient {
 
   onStatus(fn: (s: GatewayStatus) => void) {
     this._onStatus = fn;
+  }
+
+  /** Register a callback invoked when the connect handshake is rejected by the gateway. */
+  onConnectError(fn: (err: string) => void) {
+    this._onConnectError = fn;
   }
 
   onEvent(fn: GatewayEventHandler) {
@@ -179,6 +185,13 @@ export class GatewayClient {
         // Keep connection open and auto-reconnect; gateway may close us
         return;
       }
+      // Extract a human-readable error message from the gateway rejection payload
+      const errPayload = err as Record<string, unknown> | null | undefined;
+      const gatewayMsg =
+        (typeof errPayload?.errorMessage === 'string' && errPayload.errorMessage) ||
+        (typeof errPayload?.message === 'string' && errPayload.message) ||
+        (typeof err === 'string' ? err : null);
+      this._onConnectError(gatewayMsg ?? 'unknown error');
       this.autoReconnect = false;
       this.disconnect();
     }
