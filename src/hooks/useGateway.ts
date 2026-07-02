@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { GatewayClient, type JsonPayload } from '../lib/gateway';
 import { genIdempotencyKey } from '../lib/utils';
-import { getStoredCredentials, storeCredentials, clearCredentials, type AuthMode } from '../lib/credentials';
+import { storeCredentials, clearCredentials, type AuthMode } from '../lib/credentials';
 import { getOrCreateDeviceIdentity } from '../lib/deviceIdentity';
 import { getCachedMessages, setCachedMessages, mergeWithCache } from '../lib/messageCache';
 import { extractAgentIdFromKey } from '../lib/sessionName';
@@ -386,19 +386,13 @@ export function useGateway() {
     client.connect();
   }, [handleAgentEvent, loadHistory, loadSessions, loadAgents, loadAgentIdentity]);
 
-  // On mount: try stored credentials
+  // On mount: wait for login form submission
   const initRef = useRef(false);
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;
-    const stored = getStoredCredentials();
-    if (stored) {
-      // Init on mount — setupClient sets state as part of establishing the connection
-      setupClient(stored.url, stored.token, stored.authMode || 'token', stored.clientId);
-    } else {
-      setAuthenticated(false);
-    }
-  }, [setupClient]);
+    setAuthenticated(false);
+  }, []);
 
   const sendMessage = useCallback(async (text: string, attachments?: Array<{ mimeType: string; fileName: string; content: string }>) => {
     const msgId = 'user-' + Date.now();
