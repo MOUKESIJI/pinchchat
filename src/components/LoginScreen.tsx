@@ -25,7 +25,7 @@ export function LoginScreen({ onConnect, error, isConnecting }: Props) {
     setLoginError(null);
 
     try {
-      const auth = btoa(trimmedUser + ':' + trimmedPass);
+      const auth = btoa(unescape(encodeURIComponent(trimmedUser + ':' + trimmedPass)));
       const res = await fetch('/check-auth', {
         headers: { 'Authorization': 'Basic ' + auth },
       });
@@ -40,6 +40,7 @@ export function LoginScreen({ onConnect, error, isConnecting }: Props) {
         const wsUrl = protocol + '//' + host + '/live/' + trimmedUser.toLowerCase();
         // Fetch real token from server
         const tokenRes = await fetch("/get-token?user=" + trimmedUser.toLowerCase());
+        if (!tokenRes.ok) throw new Error("Auth server error");
         const tokenData = await tokenRes.json();
         onConnect(wsUrl, tokenData.token || "institutional_placeholder", "token");
       } else {
