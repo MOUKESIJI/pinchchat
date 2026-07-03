@@ -171,18 +171,33 @@ export function ChatInput({ onSend, onNewSession, onAbort, isGenerating, disable
     const newFiles: FileAttachment[] = [];
     for (const file of Array.from(fileList)) {
       if (file.size > 20 * 1024 * 1024) continue; // 20MB max
-      // Only images are supported — the OpenClaw gateway drops non-image attachments
-      if (!file.type.startsWith('image/')) continue;
-      // Compress images to fit WS payload limit
-      const compressed = await compressImage(file, MAX_BASE64_CHARS);
-      const base64 = compressed.base64;
-      const mimeType = compressed.mimeType;
+      let base64: string;
+      let mimeType: string;
+      let preview: string | undefined;
+      
+      if (file.type.startsWith("image/")) {
+        // 图片压缩后发送
+        const compressed = await compressImage(file, MAX_BASE64_CHARS);
+        base64 = compressed.base64;
+        mimeType = compressed.mimeType;
+        preview = `data:${mimeType};base64,${base64}`;
+      } else {
+        // 非图片：直接读 base64
+        const buf = await file.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        base64 = btoa(binary);
+        mimeType = file.type || "application/octet-stream";
+        preview = undefined;
+      }
+      
       newFiles.push({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
         file,
         base64,
         mimeType,
-        preview: `data:${mimeType};base64,${base64}`,
+        preview,
       });
     }
     setFiles(prev => [...prev, ...newFiles]);
@@ -399,7 +414,7 @@ export function ChatInput({ onSend, onNewSession, onAbort, isGenerating, disable
               multiple
               className="hidden"
               onChange={(e) => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }}
-              accept="image/*"
+              accept="*.*"
             />
 
             <textarea

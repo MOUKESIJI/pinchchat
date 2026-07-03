@@ -397,7 +397,7 @@ export function useGateway() {
   const sendMessage = useCallback(async (text: string, attachments?: Array<{ mimeType: string; fileName: string; content: string }>) => {
     const msgId = 'user-' + Date.now();
     const imageBlocks: MessageBlock[] = (attachments ?? [])
-      .filter(a => a.mimeType.startsWith('image/'))
+      // 支持所有附件类型
       .map(a => ({ type: 'image' as const, mediaType: a.mimeType, data: a.content }));
     const userMsg: ChatMessage = {
       id: msgId,

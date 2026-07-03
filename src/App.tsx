@@ -7,6 +7,8 @@ import { useNotifications, setBaseTitle } from './hooks/useNotifications';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { LoginScreen } from './components/LoginScreen';
+import { OnboardingWizard, getOnboarding } from "./components/OnboardingWizard";
+import { ChangePassword } from "./components/ChangePassword";
 import { ConnectionBanner } from './components/ConnectionBanner';
 import { KeyboardShortcuts } from './components/KeyboardShortcuts';
 import { Toast } from './components/Toast';
@@ -40,6 +42,9 @@ export default function App() {
   const [splitSession, setSplitSession] = useState<string | null>(null);
   const [splitRatio, setSplitRatio] = useState(getSavedSplitRatio);
   const [splitDragging, setSplitDragging] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showChangePwd, setShowChangePwd] = useState(false);
+  const [currentUser, setCurrentUser] = useState("");
   const splitContainerRef = useRef<HTMLDivElement>(null);
   const splitRatioRef = useRef(splitRatio);
   const secondary = useSecondarySession(getClient, addEventListener, splitSession);
@@ -193,6 +198,17 @@ export default function App() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
+  // Show onboarding on first login (server-side check)
+  useEffect(() => {
+    if (!authenticated) return;
+    fetch("/check-onboarding?user=" + (agentIdentity?.agentId || ""))
+      .then(r => r.json())
+      .then(data => {
+        if (!data.onboarding_done) setShowOnboarding(true);
+      })
+      .catch(() => setShowOnboarding(true));
+  }, [authenticated]);
+
   // Still checking stored credentials
   if (authenticated === null) {
     return (
@@ -202,9 +218,25 @@ export default function App() {
     );
   }
 
+  // Password change required
+  if (showChangePwd) {
+    return <ChangePassword user={currentUser} onDone={() => { setShowChangePwd(false); logout(); }} />;
+  }
+
   // Not authenticated — show login
   if (!authenticated) {
     return <LoginScreen onConnect={login} error={connectError} isConnecting={isConnecting} />;
+  }
+  if (showOnboarding) {
+    return <OnboardingWizard onComplete={async (data) => {
+      setShowOnboarding(false);
+      // 调用 API 将人格模板写入 agent 配置
+      try {
+        await fetch("/set-personality?type=" + data.personality + "&user=" + encodeURIComponent(agentIdentity?.agentId || ""));
+      } catch(e) {
+        console.warn("Failed to set personality", e);
+      }
+    }} />;
   }
 
   return (
